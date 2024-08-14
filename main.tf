@@ -30,8 +30,8 @@ module "eks" {
   eks_managed_node_groups = {
     one = {
       name         = var.eks_nodeGroup
-      desired_size = 1
-      min_size     = 1
+      desired_size = 2
+      min_size     = 2
       max_size     = 10
 
       instance_types = ["t3.large"]
@@ -76,12 +76,11 @@ module "ocean-aws-k8s" {
   tags = var.ocean_tags
 
 }
-
 ## Install Spot Ocean Controller v2
 module "kubernetes-controller" {
   source = "spotinst/kubernetes-controller/ocean"
 
-  depends_on = [module.ocean-aws-k8s]
+  depends_on = [module.eks]
 
   # Credentials
   spotinst_token = var.spotinst_token
@@ -91,6 +90,35 @@ module "kubernetes-controller" {
   #tolerations = []
   cluster_identifier = var.cluster_name
 }
+
+#Installing Metric Server
+resource "helm_release" "metrics_server" {
+    name             = "ocean-controller-metrics-server"
+    repository       = "https://kubernetes-sigs.github.io/metrics-server"
+    chart            = "metrics-server"
+    namespace        = "kube-system"
+    version          = "3.12.1"
+   
+    set {
+        name  = "apiService.create"
+        value = "true"
+    }
+}
+
+#Installing Spot Ocean VPA
+resource "helm_release" "ocean-vpa" {
+    name             = "ocean-vpa"
+    repository       = "https://charts.spot.io"
+    chart            = "ocean-vpa"
+    namespace        = "kube-system"
+    version          = "1.0.1"
+   
+    set {
+        name  = "apiService.create"
+        value = "true"
+    }
+}
+
 
 # Installing Kubeview, found at https://artifacthub.io/packages/helm/kubeview/kubeview
 resource "helm_release" "kubeview" {
